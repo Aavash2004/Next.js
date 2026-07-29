@@ -5,7 +5,6 @@ import { invoices, customers, revenue, users } from '../lib/placeholder-data';
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 async function seedUsers() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -17,7 +16,10 @@ async function seedUsers() {
 
   const insertedUsers = await Promise.all(
     users.map(async (user) => {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
+      const hashedPassword = await bcrypt.hash(
+        process.env.SEED_USER_PASSWORD || user.password,
+        10,
+      );
       return sql`
         INSERT INTO users (id, name, email, password)
         VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
@@ -30,8 +32,6 @@ async function seedUsers() {
 }
 
 async function seedInvoices() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -56,8 +56,6 @@ async function seedInvoices() {
 }
 
 async function seedCustomers() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
   await sql`
     CREATE TABLE IF NOT EXISTS customers (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -101,9 +99,22 @@ async function seedRevenue() {
   return insertedRevenue;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return new Response('Not Found', { status: 404 });
+  }
+
+  const seedSecret = process.env.SEED_SECRET;
+  if (
+    !seedSecret ||
+    request.headers.get('authorization') !== `Bearer ${seedSecret}`
+  ) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const result = await sql.begin((sql) => [
+    await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
+    await sql.begin((sql) => [
       seedUsers(),
       seedCustomers(),
       seedInvoices(),
@@ -112,6 +123,7 @@ export async function GET() {
 
     return Response.json({ message: 'Database seeded successfully' });
   } catch (error) {
-    return Response.json({ error }, { status: 500 });
+    console.error('Seed Error:', error);
+    return Response.json({ error: 'Failed to seed database' }, { status: 500 });
   }
 }

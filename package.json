@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "next": "latest",
     "next-auth": "5.0.0-beta.32",
-    "postcss": "8.5.1",
+    "postcss": "8.5.20",
     "postgres": "^3.4.6",
     "react": "latest",
     "react-dom": "latest",
@@ -42,6 +42,9 @@
     "vitest": "3.2.4"
   },
   "pnpm": {
+    "overrides": {
+      "postcss": "8.5.20"
+    },
     "onlyBuiltDependencies": [
       "bcrypt",
       "sharp"
