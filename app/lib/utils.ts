@@ -1,5 +1,20 @@
 import { Revenue } from './definitions';
 
+// Runs a database query and normalizes failures into a single, user-facing
+// error while logging the underlying cause. Centralizes the try/catch block
+// that every data fetcher would otherwise repeat.
+export async function withDbErrorHandling<T>(
+  errorMessage: string,
+  query: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await query();
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error(errorMessage);
+  }
+}
+
 export const formatCurrency = (amount: number) => {
   return (amount / 100).toLocaleString('en-US', {
     style: 'currency',

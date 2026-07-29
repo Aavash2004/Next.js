@@ -7,12 +7,22 @@ import {
   LatestInvoiceRaw,
   Revenue,
 } from './definitions';
-import { formatCurrency } from './utils';
+import { formatCurrency, withDbErrorHandling } from './utils';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
+// Shared ILIKE filter used by both the paginated invoices list and its count
+// query, so the searchable columns only need to be defined in one place.
+const invoicesSearchFilter = (query: string) => sql`
+  customers.name ILIKE ${`%${query}%`} OR
+  customers.email ILIKE ${`%${query}%`} OR
+  invoices.amount::text ILIKE ${`%${query}%`} OR
+  invoices.date::text ILIKE ${`%${query}%`} OR
+  invoices.status ILIKE ${`%${query}%`}
+`;
+
 export async function fetchRevenue() {
-  try {
+  return withDbErrorHandling('Failed to fetch revenue data.', async () => {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
@@ -24,34 +34,31 @@ export async function fetchRevenue() {
     // console.log('Data fetch completed after 3 seconds.');
 
     return data;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch revenue data.');
-  }
+  });
 }
 
 export async function fetchLatestInvoices() {
-  try {
-    const data = await sql<LatestInvoiceRaw[]>`
+  return withDbErrorHandling(
+    'Failed to fetch the latest invoices.',
+    async () => {
+      const data = await sql<LatestInvoiceRaw[]>`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       ORDER BY invoices.date DESC
       LIMIT 5`;
 
-    const latestInvoices = data.map((invoice) => ({
-      ...invoice,
-      amount: formatCurrency(invoice.amount),
-    }));
-    return latestInvoices;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch the latest invoices.');
-  }
+      const latestInvoices = data.map((invoice) => ({
+        ...invoice,
+        amount: formatCurrency(invoice.amount),
+      }));
+      return latestInvoices;
+    },
+  );
 }
 
 export async function fetchCardData() {
-  try {
+  return withDbErrorHandling('Failed to fetch card data.', async () => {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
@@ -79,10 +86,7 @@ export async function fetchCardData() {
       totalPaidInvoices,
       totalPendingInvoices,
     };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch card data.');
-  }
+  });
 }
 
 const ITEMS_PER_PAGE = 6;
@@ -92,7 +96,7 @@ export async function fetchFilteredInvoices(
 ) {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  try {
+  return withDbErrorHandling('Failed to fetch invoices.', async () => {
     const invoices = await sql<InvoicesTable[]>`
       SELECT
         invoices.id,
@@ -105,45 +109,34 @@ export async function fetchFilteredInvoices(
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+        ${invoicesSearchFilter(query)}
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
 
     return invoices;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoices.');
-  }
+  });
 }
 
 export async function fetchInvoicesPages(query: string) {
-  try {
-    const data = await sql`SELECT COUNT(*)
+  return withDbErrorHandling(
+    'Failed to fetch total number of invoices.',
+    async () => {
+      const data = await sql`SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
     WHERE
-      customers.name ILIKE ${`%${query}%`} OR
-      customers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
+      ${invoicesSearchFilter(query)}
   `;
 
-    const totalPages = Math.ceil(Number(data[0].count) / ITEMS_PER_PAGE);
-    return totalPages;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch total number of invoices.');
-  }
+      const totalPages = Math.ceil(Number(data[0].count) / ITEMS_PER_PAGE);
+      return totalPages;
+    },
+  );
 }
 
 export async function fetchInvoiceById(id: string) {
-  try {
+  return withDbErrorHandling('Failed to fetch invoice.', async () => {
     const data = await sql<InvoiceForm[]>`
       SELECT
         invoices.id,
@@ -161,14 +154,11 @@ export async function fetchInvoiceById(id: string) {
     }));
 
     return invoice[0];
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoice.');
-  }
+  });
 }
 
 export async function fetchCustomers() {
-  try {
+  return withDbErrorHandling('Failed to fetch all customers.', async () => {
     const customers = await sql<CustomerField[]>`
       SELECT
         id,
@@ -178,14 +168,11 @@ export async function fetchCustomers() {
     `;
 
     return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch all customers.');
-  }
+  });
 }
 
 export async function fetchFilteredCustomers(query: string) {
-  try {
+  return withDbErrorHandling('Failed to fetch customer table.', async () => {
     const data = await sql<CustomersTableType[]>`
 		SELECT
 		  customers.id,
@@ -211,8 +198,5 @@ export async function fetchFilteredCustomers(query: string) {
     }));
 
     return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch customer table.');
-  }
+  });
 }
