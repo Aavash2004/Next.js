@@ -17,7 +17,10 @@ async function seedUsers() {
 
   const insertedUsers = await Promise.all(
     users.map(async (user) => {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
+      const hashedPassword = await bcrypt.hash(
+        process.env.SEED_USER_PASSWORD || user.password,
+        10,
+      );
       return sql`
         INSERT INTO users (id, name, email, password)
         VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
@@ -101,9 +104,21 @@ async function seedRevenue() {
   return insertedRevenue;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return new Response('Not Found', { status: 404 });
+  }
+
+  const seedSecret = process.env.SEED_SECRET;
+  if (
+    !seedSecret ||
+    request.headers.get('authorization') !== `Bearer ${seedSecret}`
+  ) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const result = await sql.begin((sql) => [
+    await sql.begin((sql) => [
       seedUsers(),
       seedCustomers(),
       seedInvoices(),
@@ -112,6 +127,7 @@ export async function GET() {
 
     return Response.json({ message: 'Database seeded successfully' });
   } catch (error) {
-    return Response.json({ error }, { status: 500 });
+    console.error('Seed Error:', error);
+    return Response.json({ error: 'Failed to seed database' }, { status: 500 });
   }
 }

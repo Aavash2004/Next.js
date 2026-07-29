@@ -5,10 +5,11 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(process.env.DATABASE_URL!);
-
 async function getUser(email: string) {
-  const users = await sql`SELECT * FROM users WHERE email=${email}`;
+  const sql = neon(process.env.DATABASE_URL!);
+  const users = await sql`
+    SELECT id, name, email, password FROM users WHERE email=${email}
+  `;
   return users[0];
 }
 
@@ -27,7 +28,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           if (!user) return null;
 
           const passwordsMatch = await bcrypt.compare(password, user.password);
-          if (passwordsMatch) return user;
+          if (passwordsMatch) {
+            return { id: user.id, name: user.name, email: user.email };
+          }
         }
 
         console.log('Invalid credentials');
