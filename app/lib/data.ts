@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { notFound } from 'next/navigation';
 import {
   CustomerField,
   CustomersTableType,
@@ -26,7 +27,7 @@ export async function fetchRevenue() {
     return data;
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch revenue data.');
+    throw new Error('Failed to fetch revenue data.', { cause: error });
   }
 }
 
@@ -46,7 +47,7 @@ export async function fetchLatestInvoices() {
     return latestInvoices;
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch the latest invoices.');
+    throw new Error('Failed to fetch the latest invoices.', { cause: error });
   }
 }
 
@@ -81,7 +82,7 @@ export async function fetchCardData() {
     };
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch card data.');
+    throw new Error('Failed to fetch card data.', { cause: error });
   }
 }
 
@@ -117,7 +118,7 @@ export async function fetchFilteredInvoices(
     return invoices;
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoices.');
+    throw new Error('Failed to fetch invoices.', { cause: error });
   }
 }
 
@@ -138,13 +139,17 @@ export async function fetchInvoicesPages(query: string) {
     return totalPages;
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch total number of invoices.');
+    throw new Error('Failed to fetch total number of invoices.', {
+      cause: error,
+    });
   }
 }
 
 export async function fetchInvoiceById(id: string) {
+  let data: InvoiceForm[];
+
   try {
-    const data = await sql<InvoiceForm[]>`
+    data = await sql<InvoiceForm[]>`
       SELECT
         invoices.id,
         invoices.customer_id,
@@ -153,18 +158,19 @@ export async function fetchInvoiceById(id: string) {
       FROM invoices
       WHERE invoices.id = ${id};
     `;
-
-    const invoice = data.map((invoice) => ({
-      ...invoice,
-      // Convert amount from cents to dollars
-      amount: invoice.amount / 100,
-    }));
-
-    return invoice[0];
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoice.');
+    throw new Error('Failed to fetch invoice.', { cause: error });
   }
+
+  const invoice = data[0];
+
+  if (!invoice) {
+    notFound();
+  }
+
+  // Convert amount from cents to dollars
+  return { ...invoice, amount: invoice.amount / 100 };
 }
 
 export async function fetchCustomers() {
@@ -178,9 +184,9 @@ export async function fetchCustomers() {
     `;
 
     return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch all customers.');
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch all customers.', { cause: error });
   }
 }
 
@@ -211,8 +217,8 @@ export async function fetchFilteredCustomers(query: string) {
     }));
 
     return customers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch customer table.');
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch customer table.', { cause: error });
   }
 }
