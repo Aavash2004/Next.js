@@ -171,10 +171,12 @@ describe('fetchInvoiceById', () => {
     expect(calls[0].values).toEqual(['1']);
   });
 
-  it('resolves to undefined for an unknown id', async () => {
+  it('triggers a 404 for an unknown id', async () => {
     queue([]);
 
-    await expect(data.fetchInvoiceById('missing')).resolves.toBeUndefined();
+    await expect(data.fetchInvoiceById('missing')).rejects.toThrow(
+      /NEXT_HTTP_ERROR_FALLBACK;404/,
+    );
   });
 
   it('throws a friendly error when the query fails', async () => {

@@ -3,9 +3,21 @@ import { neon } from '@neondatabase/serverless';
 export default function Page() {
   async function create(formData: FormData) {
     'use server';
-    const sql = neon(`${process.env.DATABASE_URL}`);
     const comment = formData.get('comment');
-    await sql.query('INSERT INTO comments (comment) VALUES ($1)', [comment]);
+
+    if (typeof comment !== 'string' || comment.trim() === '') {
+      throw new Error('Comment is required.');
+    }
+
+    try {
+      const sql = neon(process.env.DATABASE_URL!);
+      await sql.query('INSERT INTO comments (comment) VALUES ($1)', [
+        comment.trim(),
+      ]);
+    } catch (error) {
+      console.error('Database Error:', error);
+      throw new Error('Failed to create comment.', { cause: error });
+    }
   }
 
   return (
