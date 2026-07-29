@@ -11,7 +11,9 @@ export default function Page() {
 
     try {
       const sql = neon(process.env.DATABASE_URL!);
-      await sql`INSERT INTO comments (comment) VALUES (${comment.trim()})`;
+      await sql.query('INSERT INTO comments (comment) VALUES ($1)', [
+        comment.trim(),
+      ]);
     } catch (error) {
       console.error('Database Error:', error);
       throw new Error('Failed to create comment.', { cause: error });
