@@ -5,7 +5,7 @@ export default function Page() {
     'use server';
     const sql = neon(`${process.env.DATABASE_URL}`);
     const comment = formData.get('comment');
-    await sql('INSERT INTO comments (comment) VALUES ($1)', [comment]);
+    await sql.query('INSERT INTO comments (comment) VALUES ($1)', [comment]);
   }
 
   return (
